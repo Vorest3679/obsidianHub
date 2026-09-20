@@ -8,4 +8,30 @@ services:
       NODE_ENV: production
       BILIBILI_COOKIE_2267573: ${BILIBILI_COOKIE_2267573:-}
       ZHIHU_COOKIES: ${ZHIHU_COOKIES:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1200/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
     restart: unless-stopped
+
+  subhub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: obsidianhub-subhub
+    depends_on:
+      rsshub:
+        condition: service_healthy
+    environment:
+      OBSIDIANHUB_RSSHUB_BASE_URL: http://rsshub:1200
+      OBSIDIANHUB_VAULT_PATH: /vault
+      OBSIDIANHUB_DATABASE_PATH: /data/subhub.db
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ${OBSIDIAN_VAULT_PATH:?set OBSIDIAN_VAULT_PATH in .env}:/vault
+      - subhub-data:/data
+    restart: unless-stopped
+
+volumes:
+  subhub-data:

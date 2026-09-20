@@ -31,3 +31,18 @@ func TestResolveURLRequiresBaseForRelativePath(t *testing.T) {
 		t.Fatal("ResolveURL() expected an error for a relative URL without a base")
 	}
 }
+
+func TestApplyEnvOverrides(t *testing.T) {
+	t.Setenv("OBSIDIANHUB_RSSHUB_BASE_URL", "http://rsshub:1200")
+	t.Setenv("OBSIDIANHUB_VAULT_PATH", "/vault")
+	t.Setenv("OBSIDIANHUB_DATABASE_PATH", "/data/subhub.db")
+	t.Setenv("OBSIDIANHUB_INTERVAL_SECONDS", "60")
+
+	cfg := Config{}
+	if err := applyEnvOverrides(&cfg); err != nil {
+		t.Fatalf("applyEnvOverrides() error = %v", err)
+	}
+	if cfg.RSSHubBaseURL != "http://rsshub:1200" || cfg.VaultPath != "/vault" || cfg.DatabasePath != "/data/subhub.db" || cfg.IntervalSecs != 60 {
+		t.Fatalf("applyEnvOverrides() = %+v", cfg)
+	}
+}

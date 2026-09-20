@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -41,10 +42,36 @@ func Load(path string) (Config, error) {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return Config{}, fmt.Errorf("parse config %q: %w", path, err)
 	}
+	if err := applyEnvOverrides(&cfg); err != nil {
+		return Config{}, err
+	}
 	if err := cfg.Normalize(); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+func applyEnvOverrides(c *Config) error {
+	if value := strings.TrimSpace(os.Getenv("OBSIDIANHUB_RSSHUB_BASE_URL")); value != "" {
+		c.RSSHubBaseURL = value
+	}
+	if value := strings.TrimSpace(os.Getenv("OBSIDIANHUB_VAULT_PATH")); value != "" {
+		c.VaultPath = value
+	}
+	if value := strings.TrimSpace(os.Getenv("OBSIDIANHUB_DATABASE_PATH")); value != "" {
+		c.DatabasePath = value
+	}
+	if value := strings.TrimSpace(os.Getenv("OBSIDIANHUB_USER_AGENT")); value != "" {
+		c.UserAgent = value
+	}
+	if value := strings.TrimSpace(os.Getenv("OBSIDIANHUB_INTERVAL_SECONDS")); value != "" {
+		seconds, err := strconv.Atoi(value)
+		if err != nil || seconds <= 0 {
+			return fmt.Errorf("OBSIDIANHUB_INTERVAL_SECONDS must be a positive integer, got %q", value)
+		}
+		c.IntervalSecs = seconds
+	}
+	return nil
 }
 
 func (c *Config) Normalize() error {

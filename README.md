@@ -25,7 +25,7 @@
 
 ## 快速开始
 
-需要 Go 1.22+、Docker（只在自建 RSSHub 时需要）。
+本地开发模式需要 Go 1.22+；完整 Compose 模式只需要 Docker。
 
 ```bash
 cp config.example.json config.json
@@ -36,6 +36,18 @@ docker compose up -d rsshub
 go run ./cmd/subhub -config ./config.json -once
 go run ./cmd/subhub -config ./config.json
 ```
+
+也可以完全使用 Docker Compose 运行：
+
+```bash
+cp config.example.json config.json
+cp .env.example .env
+# 编辑 .env，至少设置 OBSIDIAN_VAULT_PATH；需要的平台再填 Cookie
+docker compose up -d --build
+docker compose logs -f subhub
+```
+
+Compose 模式会自动使用容器内的 `http://rsshub:1200`，并把宿主机的 Obsidian Vault 挂载到容器的 `/vault`。数据库保存在 Docker volume `subhub-data` 中。
 
 Compose 使用 `diygod/rsshub:chromium-bundled`，因为部分 B 站路由在接口被风控时会回退到 Playwright；普通 `latest` 镜像不包含浏览器，可能返回 503。
 
