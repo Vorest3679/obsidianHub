@@ -1,0 +1,11 @@
+services:
+  rsshub:
+    image: diygod/rsshub:chromium-bundled
+    container_name: obsidianhub-rsshub
+    ports:
+      - "1200:1200"
+    environment:
+      NODE_ENV: production
+      BILIBILI_COOKIE_2267573: ${BILIBILI_COOKIE_2267573:-}
+      ZHIHU_COOKIES: ${ZHIHU_COOKIES:-}
+    restart: unless-stopped

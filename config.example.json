@@ -1,0 +1,45 @@
+{
+  "rsshub_base_url": "http://localhost:1200",
+  "vault_path": "/Users/vorest/Documents/Obsidian/好玩的知识",
+  "database_path": "./data/subhub.db",
+  "interval_seconds": 300,
+  "user_agent": "obsidianhub/0.1 (+https://github.com/your-org/obsidianhub)",
+  "subscriptions": [
+    {
+      "id": "bilibili-up-example",
+      "name": "B 站示例 UP 主",
+      "source": "bilibili",
+      "url": "/bilibili/user/video/2267573",
+      "folder": "Bilibili/示例 UP 主",
+      "tags": ["来源/Bilibili", "知识输入"],
+      "enabled": true
+    },
+    {
+      "id": "zhihu-example",
+      "name": "知乎示例博主",
+      "source": "zhihu",
+      "url": "/zhihu/people/activities/diygod",
+      "folder": "知乎/示例博主",
+      "tags": ["来源/知乎", "知识输入"],
+      "enabled": false
+    },
+    {
+      "id": "x-example",
+      "name": "X 示例账号",
+      "source": "x",
+      "url": "/twitter/user/RSSHub",
+      "folder": "X/示例账号",
+      "tags": ["来源/X", "知识输入"],
+      "enabled": false
+    },
+    {
+      "id": "my-blog",
+      "name": "我的博客",
+      "source": "blog",
+      "url": "https://example.com/feed.xml",
+      "folder": "博客/我的博客",
+      "tags": ["来源/博客", "知识输入"],
+      "enabled": false
+    }
+  ]
+}

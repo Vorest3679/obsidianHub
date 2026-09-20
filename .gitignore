@@ -1,0 +1,7 @@
+data/
+config.json
+.env
+*.db
+*.db-shm
+*.db-wal
+.DS_Store
