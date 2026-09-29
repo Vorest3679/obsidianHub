@@ -33,8 +33,12 @@ cp config.example.json config.json
 # 如需知乎路由，把登录 Cookie 放入 .env 的 ZHIHU_COOKIES
 # B 站被风控时，把对应账号 Cookie 放入 .env 的 BILIBILI_COOKIE_2267573
 docker compose up -d rsshub
-go run ./cmd/subhub -config ./config.json -once
-go run ./cmd/subhub -config ./config.json
+go run . -config ./config.json -once
+go run . -config ./config.json
+
+# 编译为 ohub 命令
+go build -o "$(go env GOPATH)/bin/ohub" .
+ohub -config ./config.json
 ```
 
 也可以完全使用 Docker Compose 运行：
