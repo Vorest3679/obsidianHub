@@ -13,26 +13,30 @@ import (
 	"strings"
 )
 
+// Config 保存程序运行参数；JSON 标签定义配置文件中的字段名。
 type Config struct {
-	RSSHubBaseURL string         `json:"rsshub_base_url"`
-	VaultPath     string         `json:"vault_path"`
-	DatabasePath  string         `json:"database_path"`
-	IntervalSecs  int            `json:"interval_seconds"`
-	UserAgent     string         `json:"user_agent"`
-	Subscriptions []Subscription `json:"subscriptions"`
+	RSSHubBaseURL string         `json:"rsshub_base_url"`  // 相对 Feed URL 使用的 RSSHub 根地址。
+	VaultPath     string         `json:"vault_path"`       // Obsidian Vault 的本地目录。
+	DatabasePath  string         `json:"database_path"`    // SQLite 去重数据库文件路径。
+	IntervalSecs  int            `json:"interval_seconds"` // 常驻模式下两轮同步之间的秒数。
+	UserAgent     string         `json:"user_agent"`       // 拉取 Feed 时发送的 HTTP User-Agent。
+	Subscriptions []Subscription `json:"subscriptions"`    // 需要轮询的 Feed 列表。
 }
 
+// Subscription 描述一个需要轮询的 Feed，以及笔记在 Vault 中的归档方式。
 type Subscription struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	Source  string   `json:"source"`
-	URL     string   `json:"url"`
-	Folder  string   `json:"folder"`
-	Tags    []string `json:"tags"`
-	Enabled bool     `json:"enabled"`
+	ID      string   `json:"id"`      // 稳定去重标识；为空时由 Normalize 根据来源和 URL 生成。
+	Name    string   `json:"name"`    // 用于日志和错误信息展示的名称。
+	Source  string   `json:"source"`  // 来源标记，写入笔记 frontmatter。
+	URL     string   `json:"url"`     // 完整 Feed URL 或相对 RSSHub 的路由。
+	Folder  string   `json:"folder"`  // Vault 内的归档子目录。
+	Tags    []string `json:"tags"`    // 写入笔记 frontmatter 的标签。
+	Enabled bool     `json:"enabled"` // false 时跳过该订阅。
 }
 
+// Load 读取 JSON 配置，应用环境变量覆盖，并执行默认值填充和合法性检查。
 func Load(path string) (Config, error) {
+	// ReadFile 读取整个小型配置文件；Unmarshal 根据字段上的 json 标签填充 Config。
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return Config{}, fmt.Errorf("read config %q: %w", path, err)
@@ -51,6 +55,7 @@ func Load(path string) (Config, error) {
 	return cfg, nil
 }
 
+// applyEnvOverrides 让部署环境可以覆盖文件配置；空环境变量视为“未设置”。
 func applyEnvOverrides(c *Config) error {
 	if value := strings.TrimSpace(os.Getenv("OBSIDIANHUB_RSSHUB_BASE_URL")); value != "" {
 		c.RSSHubBaseURL = value
@@ -65,6 +70,7 @@ func applyEnvOverrides(c *Config) error {
 		c.UserAgent = value
 	}
 	if value := strings.TrimSpace(os.Getenv("OBSIDIANHUB_INTERVAL_SECONDS")); value != "" {
+		// Atoi 负责字符串到整数的转换，随后显式拒绝非正数。
 		seconds, err := strconv.Atoi(value)
 		if err != nil || seconds <= 0 {
 			return fmt.Errorf("OBSIDIANHUB_INTERVAL_SECONDS must be a positive integer, got %q", value)
@@ -74,6 +80,7 @@ func applyEnvOverrides(c *Config) error {
 	return nil
 }
 
+// Normalize 填补默认值并校验订阅配置；它会直接修改接收者中的字段。
 func (c *Config) Normalize() error {
 	if strings.TrimSpace(c.VaultPath) == "" {
 		return errors.New("vault_path is required")
@@ -106,6 +113,7 @@ func (c *Config) Normalize() error {
 			s.Name = s.Source
 		}
 		if s.ID == "" {
+			// 没有显式 ID 时，根据来源和 URL 生成稳定 ID；NUL 用来避免简单拼接歧义。
 			h := sha1.Sum([]byte(s.Source + "\x00" + s.URL))
 			s.ID = "sub-" + hex.EncodeToString(h[:])[:12]
 		}
@@ -123,6 +131,7 @@ func (c *Config) Normalize() error {
 	return nil
 }
 
+// ResolveURL 将 Feed 地址解析为绝对 URL：完整 URL 原样规范化返回，相对路径拼到 RSSHub 基址。
 func ResolveURL(base, raw string) (string, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -139,11 +148,13 @@ func ResolveURL(base, raw string) (string, error) {
 		return "", fmt.Errorf("invalid rsshub_base_url %q", base)
 	}
 	path := "/" + strings.TrimLeft(u.Path, "/")
+	// 只组合 Path，并单独保留 RawQuery，确保查询参数不会被误当作路径内容。
 	baseURL.Path = strings.TrimRight(baseURL.Path, "/") + path
 	baseURL.RawQuery = u.RawQuery
 	return baseURL.String(), nil
 }
 
+// expandHome 把 ~ 或 ~/ 开头的本地路径展开为用户主目录；其他路径保持原样。
 func expandHome(path string) string {
 	if path == "~" {
 		if home, err := os.UserHomeDir(); err == nil {

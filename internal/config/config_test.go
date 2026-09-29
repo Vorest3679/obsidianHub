@@ -2,6 +2,7 @@ package config
 
 import "testing"
 
+// TestResolveURL 用表驱动用例覆盖相对路径、查询参数和完整 URL。
 func TestResolveURL(t *testing.T) {
 	tests := []struct {
 		name string
@@ -26,12 +27,14 @@ func TestResolveURL(t *testing.T) {
 	}
 }
 
+// TestResolveURLRequiresBaseForRelativePath 验证没有基础地址时拒绝相对 Feed 路径。
 func TestResolveURLRequiresBaseForRelativePath(t *testing.T) {
 	if _, err := ResolveURL("", "/bilibili/user/video/1"); err == nil {
 		t.Fatal("ResolveURL() expected an error for a relative URL without a base")
 	}
 }
 
+// TestApplyEnvOverrides 验证环境变量可以覆盖对应配置字段。
 func TestApplyEnvOverrides(t *testing.T) {
 	t.Setenv("OBSIDIANHUB_RSSHUB_BASE_URL", "http://rsshub:1200")
 	t.Setenv("OBSIDIANHUB_VAULT_PATH", "/vault")

@@ -11,15 +11,17 @@ import (
 	"obsidianhub/internal/store"
 )
 
+// Service 协调配置、Feed 获取、去重存储和 Markdown 归档几个组件。
 type Service struct {
-	Config  config.Config
-	Fetcher *fetcher.Fetcher
-	Store   *store.Store
-	Writer  *archive.Writer
-	Logger  *log.Logger
+	Config  config.Config    // 订阅和运行时配置。
+	Fetcher *fetcher.Fetcher // 负责下载、解析 Feed。
+	Store   *store.Store     // 负责查询去重状态和保存条目记录。
+	Writer  *archive.Writer  // 负责将新条目写为 Vault 中的 Markdown 笔记。
+	Logger  *log.Logger      // 同步过程使用的日志输出器。
 }
 
-func (s *Service) SyncAll(ctx context.Context) error {
+// SyncAll 依次同步所有已启用订阅。单个订阅失败不会阻止后续订阅，最后返回遇到的第一个错误。
+func (s *Service) SyncAll(ctx context.Context) error { //声明这是service结构体的SyncAll方法，接收者为指针s作为实例
 	var firstErr error
 	for _, sub := range s.Config.Subscriptions {
 		if !sub.Enabled {
@@ -35,6 +37,7 @@ func (s *Service) SyncAll(ctx context.Context) error {
 	return firstErr
 }
 
+// SyncOne 同步一个订阅并返回本轮新归档的条目数；已存在的 GUID 会跳过。
 func (s *Service) SyncOne(ctx context.Context, sub config.Subscription) (int, error) {
 	feedURL, err := config.ResolveURL(s.Config.RSSHubBaseURL, sub.URL)
 	if err != nil {
@@ -55,6 +58,7 @@ func (s *Service) SyncOne(ctx context.Context, sub config.Subscription) (int, er
 		if exists {
 			continue
 		}
+		// 先写 Markdown，再登记数据库：数据库中的记录代表对应笔记已经成功生成。
 		notePath, err := s.Writer.Write(sub, item)
 		if err != nil {
 			return count, fmt.Errorf("archive %s: %w", sub.Name, err)
