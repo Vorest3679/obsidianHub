@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"obsidianhub/internal/archive"
 	"obsidianhub/internal/config"
 	"obsidianhub/internal/fetcher"
+	"obsidianhub/internal/model"
 	"obsidianhub/internal/store"
 )
 
@@ -51,6 +53,9 @@ func (s *Service) SyncOne(ctx context.Context, sub config.Subscription) (int, er
 	for _, item := range items {
 		item.SubscriptionID = sub.ID
 		item.Source = sub.Source
+		if isZhihuUpvoteActivity(item) {
+			continue
+		}
 		exists, err := s.Store.Has(sub.ID, item.GUID)
 		if err != nil {
 			return count, err
@@ -70,4 +75,15 @@ func (s *Service) SyncOne(ctx context.Context, sub config.Subscription) (int, er
 		s.Logger.Printf("archived: [%s] %s", sub.Name, item.Title)
 	}
 	return count, nil
+}
+
+// isZhihuUpvoteActivity 判断知乎动态标题中的行为前缀是否表示赞同。
+// RSSHub 的知乎用户动态标题格式为“用户名行为: 内容标题”。
+func isZhihuUpvoteActivity(item model.Item) bool {
+	if !strings.EqualFold(strings.TrimSpace(item.Source), "zhihu") {
+		return false
+	}
+
+	header, _, found := strings.Cut(item.Title, ":")
+	return found && strings.Contains(header, "赞同")
 }
