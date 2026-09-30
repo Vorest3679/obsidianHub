@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	xhtml "golang.org/x/net/html"
+
 	"obsidianhub/internal/config"
 	"obsidianhub/internal/model"
 )
@@ -21,6 +23,10 @@ var unsafeFilename = regexp.MustCompile(`[\\/:*?"<>|\x00-\x1f]+`)
 // spaces 和 hyphens 用来把连续空白、连续连字符统一成便于阅读的单个连字符。
 var spaces = regexp.MustCompile(`\s+`)
 var hyphens = regexp.MustCompile(`-+`)
+var highlightedCodeBlock = regexp.MustCompile(`(?is)<div\b[^>]*\bclass\s*=\s*["'][^"']*\bhighlight\b[^"']*["'][^>]*>\s*<pre\b[^>]*>.*?</pre\s*>\s*</div\s*>`)
+var preformattedBlock = regexp.MustCompile(`(?is)<pre\b[^>]*>.*?</pre\s*>`)
+var languageClass = regexp.MustCompile(`(?i)(?:^|\s)(?:language|lang)-([a-z0-9_+.-]+)(?:\s|$)`)
+var backtickSequence = regexp.MustCompile("`+")
 
 // Writer 把 Feed 条目保存到指定 Vault 的 Markdown 文件中。
 type Writer struct {
@@ -119,9 +125,99 @@ func renderMarkdown(sub config.Subscription, item model.Item, when time.Time) st
 		content = "（该 RSS 条目没有正文摘要。）"
 	}
 	b.WriteString("## 内容\n\n")
-	b.WriteString(html.UnescapeString(content))
+	// Feed 中的高亮代码通常是 Pygments 生成的 HTML；先提取代码文本并
+	// 转成 Markdown 围栏，再解码正文中的 HTML 实体。
+	b.WriteString(html.UnescapeString(markdownCodeBlocks(content)))
 	b.WriteString("\n")
 	return b.String()
+}
+
+// markdownCodeBlocks 把高亮容器和普通 pre 元素转换成 Obsidian 可渲染的代码围栏。
+func markdownCodeBlocks(content string) string {
+	content = replaceCodeBlocks(content, highlightedCodeBlock)
+	return replaceCodeBlocks(content, preformattedBlock)
+}
+
+func replaceCodeBlocks(content string, pattern *regexp.Regexp) string {
+	return pattern.ReplaceAllStringFunc(content, func(block string) string {
+		code, language, ok := extractCodeBlock(block)
+		if !ok {
+			return block
+		}
+		fence := codeFence(code)
+		markdown := fence + language + "\n" + code
+		if !strings.HasSuffix(code, "\n") {
+			markdown += "\n"
+		}
+		markdown += fence
+		// The whole body is unescaped after this conversion. Escape the generated
+		// Markdown once so code entities such as &lt; remain literal code text.
+		return "\n\n" + html.EscapeString(markdown) + "\n\n"
+	})
+}
+
+func extractCodeBlock(block string) (code, language string, ok bool) {
+	root, err := xhtml.Parse(strings.NewReader(block))
+	if err != nil {
+		return "", "", false
+	}
+	pre := findElement(root, "pre")
+	if pre == nil {
+		return "", "", false
+	}
+	// 默认从 <pre> 节点收集文本；没有嵌套 <code> 时也能处理普通预格式化内容。
+	content := pre
+	if codeNode := findElement(pre, "code"); codeNode != nil {
+		// <pre><code> 是常见代码块结构，优先读取 <code>，避免带入外围节点内容。
+		content = codeNode
+		for _, attr := range codeNode.Attr {
+			// 语言标识通常写在 class 中，例如 "language-python"。
+			if attr.Key != "class" {
+				continue
+			}
+			// 正则的第 2 组是语言名；找不到时保留空字符串，生成无语言标记的围栏。
+			if match := languageClass.FindStringSubmatch(attr.Val); len(match) == 2 {
+				language = match[1]
+			}
+		}
+	}
+	// 高亮 HTML 的代码字符分散在多个 <span> 中，递归拼接文本节点以还原原始代码。
+	var text strings.Builder
+	appendText(content, &text)
+	return text.String(), language, true
+}
+
+func findElement(node *xhtml.Node, name string) *xhtml.Node {
+	if node.Type == xhtml.ElementNode && node.Data == name {
+		return node
+	}
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		if found := findElement(child, name); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+func appendText(node *xhtml.Node, text *strings.Builder) {
+	if node.Type == xhtml.TextNode {
+		text.WriteString(node.Data)
+	}
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		appendText(child, text)
+	}
+}
+
+// codeFence 生成 Markdown 代码围栏：至少 3 个反引号，并比代码中的最长连续反引号多 1 个，避免围栏提前闭合。
+func codeFence(code string) string {
+	longest := 2 // 初始值 2 保证最终围栏至少有 3 个反引号。
+	for _, match := range backtickSequence.FindAllString(code, -1) {
+		if len(match) > longest {
+			// 记录代码中最长的一段连续反引号，供最终围栏长度参考。
+			longest = len(match)
+		}
+	}
+	return strings.Repeat("`", longest+1)
 }
 
 // fm 按 frontmatter 的 key: value 格式写入一个字段，并统一通过 yamlScalar 转义值。
